@@ -1,0 +1,62 @@
+Name: Roman Bogdan-Gabriel
+Group: 332CB
+First Homework
+
+=== Overview ===
+
+A device is responsible for measuring the noise levels of different locations.
+However, the device will not measure the noise levels of every location it
+travels to - it will exchange data with its neighbours during a certain
+timepoint in order to compute these levels. The algorithm executed by the 
+devices and the locations for which they have to compute the noise levels
+are given via scripts.
+
+In order to start their execution, the devices have to be set-up first.
+The main goal of this set-up is to assure device communication - the devices
+will share the same instances of some objects so that they can synchronize their
+actions acording to the current timepoint. They will share:
+	-> Set-up Barrier: every thread of every device has to stop at this barrier
+in order to wait for the others to finish their set-up phase.
+	-> Timepoint Barrier: every thread of every device has to stop at this barrier
+at the end of every timepoint, waiting for the others to finish running their scripts
+so that they can advance simultaneously.
+	-> Location Locks: a dictionary of locks, each lock corresponding to one
+location on the map. Once a thread has been given the task to compute the noise
+level of a certain location, it has to make sure that no other thread is trying
+to access/modify this data on any other device. This is achieved by acquiring 
+the lock. If the lock is already acquired by other thread, it will wait 
+until it is released.
+At the end of the set-up phase each device will spawn 8 threads.
+
+At the beginning of every timepoint, a device has to get its neighbours.
+This is achieved by calling the get_neighbours() method of the supervisor.
+However, only one thread per device must do so. This action is implemented
+using a lock and a boolean: every thread will acquire the lock one by one,
+and once inside the critical zone they will test if they are the first thread
+entering that zone. If so, it will get the device's neighbours and then 
+will set the test variable to False, so that no other thread may repeat this
+action during the current timepoint.
+
+We have to make sure only a single thread starts running a certain script 
+per device during one timepoint - we can not have more threads running the same
+script since that would be a waste of resources! To achieve this, the received
+scripts will be put in a Priority Queue. In python, the Queue module implements
+all the required locking semantics so that the information can be distributed
+safely. At the end of every timepoint, a device will receive an
+End-of-Timepoint script and every thread must be notified to stop its execution, 
+of course, after they finish running the remaining scripts in the Queue. To do so,
+the End-of-Timepoint scripts will be introduced in the Priority Queue with a lower
+priority (in the implementation though, the lower value has greater priority), 
+one per thread. The threads will wait for every thread of every device to stop
+its execution (at the Timepoint barrier) and eventually they will proceed
+simultaneously to the next timepoint.
+
+Every thread will execute its script safely using the Location Lock. Once it
+has finished its job, the thread will release the lock and will put the script
+in another queue, for future execution in different timepoints.
+
+At the end of the session (when every device has received None from get_neighbours),
+every device will shut down its threads.
+
+
+
